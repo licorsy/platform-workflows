@@ -1,0 +1,21 @@
+name: CI Docs
+
+on:
+  workflow_call:
+    inputs:
+      base-sha:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  docgov:
+    name: docgov
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: licorsy/docs-governance/action@v1
+        with:
+          base-sha: ${{ inputs.base-sha }}

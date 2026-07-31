@@ -18,11 +18,16 @@ Runs [docs-governance](https://github.com/licorsy/docs-governance) against the c
 ```yaml
 jobs:
   ci-docs:
-    if: hashFiles('.docgov.config.js') != ''
     uses: licorsy/platform-workflows/.github/workflows/ci-docs.yml@v1
     with:
       base-sha: ${{ github.event.pull_request.base.sha }}
 ```
+
+Callers only need this job if they use `.docgov.config.js`. Don't gate it with
+`if: hashFiles(...)` — `hashFiles()` is not a recognized function in a job-level `if:`
+condition (only inside steps, after checkout), and using it there breaks the entire
+caller workflow's parsing. If you need a conditional call, gate on something evaluable
+at job level instead (e.g. a repo variable or `github.event` field).
 
 ### `ci-security.yml`
 

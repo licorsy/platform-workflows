@@ -1,5 +1,7 @@
 # platform-workflows
 
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/licorsy/platform-workflows/badge)](https://securityscorecards.dev/viewer/?uri=github.com/licorsy/platform-workflows)
+
 Platform-level CI/CD and workflow automation for licorsy repos.
 
 Branch taxonomy: `develop` -> `staging` -> `main` (see [git-governance](https://github.com/licorsy/git-governance)).

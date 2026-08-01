@@ -50,9 +50,9 @@ jobs:
 
 ### `governance-compliance.yml`
 
-Checks that the caller carries the five artifacts that define "compliant" in
+Checks that the caller carries the six artifacts that define "compliant" in
 [licorsy/.github](https://github.com/licorsy/.github)'s `docs/org-governance-adoption.md`:
-`CLAUDE.md`, `.pre-commit-config.yaml`, `.github/workflows/pr-checks.yml`,
+`AGENTS.md`, `CLAUDE.md`, `.pre-commit-config.yaml`, `.github/workflows/pr-checks.yml`,
 `.docgov.config.js`, and `.claude/settings.json`. That document is the source of truth for
 the list; this workflow is a mechanical reading of it, not a second definition.
 

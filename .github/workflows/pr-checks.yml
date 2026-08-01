@@ -1,5 +1,5 @@
 # Minimal remote validation, kept deliberately off `develop` to save Actions
-# quota. See CLAUDE.md ("Remote validation layer") for the rationale: local
+# quota. See AGENTS.md ("Remote validation layer") for the rationale: local
 # pre-commit is the primary gate everywhere, including develop; this workflow
 # only runs at the two deliberate, infrequent promotion points (staging, main) or
 # on demand.
@@ -54,7 +54,7 @@ jobs:
       # (github.com/licorsy/docs-governance) and has it configured via
       # .docgov.config.js. Self-disables if the companion instead brings its
       # own path-filtered workflow (docs-governance.yml) — running both would
-      # check the same PR twice. See CLAUDE.md ("Companion plugins").
+      # check the same PR twice. See AGENTS.md ("Companion plugins").
       - name: Check documentation consistency (docs-governance)
         if: >-
           github.event_name == 'pull_request' &&

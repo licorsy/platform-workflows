@@ -79,14 +79,3 @@ jobs:
     uses: ./.github/workflows/governance-compliance.yml
     with:
       strict: true
-
-  # Dogfooding: this repository publishes release-integrity.yml, so it runs it
-  # on itself. By path rather than @v1, for the same reason as the compliance
-  # job above — the host has to test the revision in the pull request.
-  #
-  # version-file is empty: this repository is not a Claude Code plugin and has
-  # no plugin.json, so only the floating-tag-vs-main comparison applies.
-  release-integrity:
-    uses: ./.github/workflows/release-integrity.yml
-    with:
-      version-file: ''

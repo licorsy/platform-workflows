@@ -10,6 +10,17 @@ License: MIT.
 
 ## Reusable workflows
 
+**Availability.** `uses: ...@v1` resolves to whatever the floating `v1` tag points at, which
+is **not** automatically the tip of `main`. As of 2026-08-01 `v1` is at `v1.0.1` and carries
+only `ci-docs.yml`, `ci-security.yml`, and `release.yml`. `governance-compliance.yml` and
+`release-integrity.yml` are on `develop` and become reachable at `@v1` only once this
+repository is promoted and the floating tag moved — the `@v1` snippets below are how to call
+them, not proof that they resolve today.
+
+That gap is the exact failure mode `release-integrity.yml` exists to catch, and it caught it
+here on its first real run against this repository.
+
+
 Call these at **job level** (`jobs.<id>.uses: ...`) — they are `workflow_call` reusable
 workflows, not composite actions, so they cannot be invoked as a step inside another job.
 
@@ -80,6 +91,42 @@ It is a **presence** check, not a content check, and deliberately so. What each 
 own config — and re-checking it here would fork those rules by workflow. What nothing else
 catches is a repository that simply never received one of the files, which is what happened
 before `init-governance.sh` learned to write `.claude/settings.json`.
+
+### `release-integrity.yml`
+
+Answers one question: **does what consumers receive match what is on `main`?** For a
+Claude Code plugin that isn't obvious — `init-governance.sh` copies from the installed
+plugin cache, and the cache resolves tags, so work merged to `main` without a release
+keeps serving the previous version silently and indefinitely.
+
+```yaml
+on:
+  schedule: [{ cron: '17 6 * * *' }]
+  workflow_dispatch: {}
+
+jobs:
+  release-integrity:
+    uses: licorsy/platform-workflows/.github/workflows/release-integrity.yml@v1
+```
+
+Inputs: `major-tag` (default `v1`) and `version-file` (default `.claude-plugin/plugin.json`;
+set empty to compare only the floating tag against `main`).
+
+It catches three failure modes, each of which has happened or nearly happened here:
+
+1. `main` moved and nobody tagged — the original incident, seven commits past `v1.1.0`.
+2. Tagged, but the floating tag wasn't moved — semver tag right, consumers stale.
+3. `git tag -f v1 v1.4.0` points the floating tag at the **tag object** rather than the
+   commit. `git rev-list -n1 v1` still resolves correctly, so it looks fine.
+
+**Scheduled, not on push to `main`** — tagging happens *after* the merge, so a
+push-triggered run would fail every release by construction and train everyone to
+ignore it.
+
+Note on mode 3: it has to be read off the tag's immediate target via `git cat-file tag`.
+`^{}` peels recursively and always lands on a commit, so a check written against it can
+never fire — which is exactly what the first version of this check did, and what testing
+caught.
 
 ### `release.yml`
 

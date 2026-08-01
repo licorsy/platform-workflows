@@ -1,0 +1,88 @@
+name: Governance Compliance
+
+# Checks that a caller repository carries the six artifacts that define
+# "compliant" in licorsy/.github's docs/org-governance-adoption.md. That
+# document is the source of truth for the list; this workflow is a mechanical
+# reading of it, not a second definition.
+#
+# Deliberately a presence check, not a content check. What each file must SAY
+# is already enforced where it lives - pre-commit and docgov run against the
+# caller's own config - and duplicating that here would fork the rules by
+# workflow. What nothing else catches is a repository that simply never
+# received one of the files, which is exactly what happened before
+# init-governance.sh learned to write .claude/settings.json.
+#
+# Advisory by default. A repository can be legitimately mid-adoption, and a
+# hard failure would make this workflow the thing that blocks work rather than
+# the thing that reports on it. Pass `strict: true` once a repository is
+# expected to stay compliant.
+
+on:
+  workflow_call:
+    inputs:
+      strict:
+        description: 'Fail the job when an artifact is missing, instead of only reporting it.'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  governance-compliance:
+    name: governance-compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the compliance artifacts
+        env:
+          STRICT: ${{ inputs.strict }}
+        run: |
+          set -euo pipefail
+
+          # Keep this list in the same order as the table in
+          # licorsy/.github's docs/org-governance-adoption.md.
+          artifacts=(
+            "AGENTS.md"
+            "CLAUDE.md"
+            ".pre-commit-config.yaml"
+            ".github/workflows/pr-checks.yml"
+            ".docgov.config.js"
+            ".claude/settings.json"
+          )
+
+          missing=()
+          {
+            echo "| Artifact | Present |"
+            echo "| --- | --- |"
+            for a in "${artifacts[@]}"; do
+              if [ -f "$a" ]; then
+                echo "| \`$a\` | yes |"
+              else
+                echo "| \`$a\` | **no** |"
+                missing+=("$a")
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "Compliant: all ${#artifacts[@]} governance artifacts present."
+            exit 0
+          fi
+
+          echo "Missing ${#missing[@]} of ${#artifacts[@]} governance artifacts:" >&2
+          for a in "${missing[@]}"; do
+            echo "  - $a" >&2
+          done
+          echo "" >&2
+          echo "Run /git-check in a Claude Code session to scaffold what is missing." >&2
+
+          # A bare `if [ "$STRICT" = true ]` would treat any non-'true' value as
+          # advisory, including a typo. The workflow_call input is typed boolean,
+          # so GitHub only ever passes 'true' or 'false' - but this workflow is
+          # also readable by hand, and being explicit about which value blocks is
+          # worth one extra line.
+          if [ "$STRICT" = "true" ]; then
+            echo "strict: true - failing the job." >&2
+            exit 1
+          fi
+          echo "strict: false - reporting only, not failing the job." >&2

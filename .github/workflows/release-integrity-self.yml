@@ -1,0 +1,31 @@
+name: Release integrity (self)
+
+# Dogfooding: this repository publishes release-integrity.yml, so it runs it on
+# itself.
+#
+# Scheduled, not attached to pr-checks.yml. That was the first attempt and it
+# contradicted the reusable workflow's own documented rationale: the check
+# compares `main` against the floating tag, and a promotion pull request is
+# precisely the moment `main` is about to move and the tag has not yet been
+# updated. Running it there reports a drift that the merge-then-tag sequence is
+# in the middle of fixing, which is the "fails every release by construction"
+# failure the schedule exists to avoid.
+#
+# By path rather than @v1, so this repository tests the revision it holds rather
+# than the last released one — which matters most here, since a stale @v1 is the
+# exact condition being checked.
+
+on:
+  schedule:
+    # Daily. Drift is silent and open-ended, so detection latency in hours is
+    # fine; what matters is that it is bounded at all.
+    - cron: '17 6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  release-integrity:
+    uses: ./.github/workflows/release-integrity.yml
+    with:
+      # Not a Claude Code plugin — no plugin.json — so only the
+      # floating-tag-vs-main comparison applies.
+      version-file: ''

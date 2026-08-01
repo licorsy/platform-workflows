@@ -31,7 +31,7 @@ module.exports = {
       // at directories that do not exist would be a claim about a corpus this
       // repository does not have.
       scope_dirs: [],
-      root_files: ['CLAUDE.md'],
+      root_files: ['AGENTS.md', 'CLAUDE.md'],
       exclude_prefixes: [],
       id_only_sources: [],
       // The full org schema, matching the corpus this file governs. CLAUDE.md
@@ -64,7 +64,7 @@ module.exports = {
       // today, so the rule is a no-op — declared anyway so it applies the
       // moment one does, which is the only time the cap matters.
       scope_dirs: [],
-      root_files: ['CLAUDE.md'],
+      root_files: ['AGENTS.md', 'CLAUDE.md'],
       exclude_prefixes: [],
       exclude_files: [],
       marker: 'Changelog:',

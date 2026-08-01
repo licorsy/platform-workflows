@@ -1,6 +1,6 @@
 name: Governance Compliance
 
-# Checks that a caller repository carries the five artifacts that define
+# Checks that a caller repository carries the six artifacts that define
 # "compliant" in licorsy/.github's docs/org-governance-adoption.md. That
 # document is the source of truth for the list; this workflow is a mechanical
 # reading of it, not a second definition.
@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check the five compliance artifacts
+      - name: Check the compliance artifacts
         env:
           STRICT: ${{ inputs.strict }}
         run: |
@@ -42,6 +42,7 @@ jobs:
           # Keep this list in the same order as the table in
           # licorsy/.github's docs/org-governance-adoption.md.
           artifacts=(
+            "AGENTS.md"
             "CLAUDE.md"
             ".pre-commit-config.yaml"
             ".github/workflows/pr-checks.yml"

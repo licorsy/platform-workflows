@@ -48,6 +48,39 @@ jobs:
     secrets: inherit
 ```
 
+### `governance-compliance.yml`
+
+Checks that the caller carries the five artifacts that define "compliant" in
+[licorsy/.github](https://github.com/licorsy/.github)'s `docs/org-governance-adoption.md`:
+`CLAUDE.md`, `.pre-commit-config.yaml`, `.github/workflows/pr-checks.yml`,
+`.docgov.config.js`, and `.claude/settings.json`. That document is the source of truth for
+the list; this workflow is a mechanical reading of it, not a second definition.
+
+```yaml
+jobs:
+  governance-compliance:
+    uses: licorsy/platform-workflows/.github/workflows/governance-compliance.yml@v1
+```
+
+**Advisory by default** — it reports missing artifacts in the job summary and passes. A
+repository can legitimately be mid-adoption, and a hard failure would make this the thing
+that blocks work rather than the thing that reports on it. Once a repository is expected to
+stay compliant, pass `strict: true` to fail instead:
+
+```yaml
+jobs:
+  governance-compliance:
+    uses: licorsy/platform-workflows/.github/workflows/governance-compliance.yml@v1
+    with:
+      strict: true
+```
+
+It is a **presence** check, not a content check, and deliberately so. What each file must
+*say* is already enforced where it lives — `pre-commit` and `docgov` run against the caller's
+own config — and re-checking it here would fork those rules by workflow. What nothing else
+catches is a repository that simply never received one of the files, which is what happened
+before `init-governance.sh` learned to write `.claude/settings.json`.
+
 ### `release.yml`
 
 Reusable semantic-release workflow (Node 20 + `semantic-release-action@v4`) for repos with a

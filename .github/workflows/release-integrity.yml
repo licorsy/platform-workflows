@@ -1,0 +1,125 @@
+name: Release Integrity
+
+# Answers one question: does what consumers actually receive match what is on
+# `main`? For a Claude Code plugin the answer is not obvious, because
+# `init-governance.sh` copies from the installed plugin cache and the cache
+# resolves tags — so work merged to `main` without a release keeps serving the
+# previous version, silently and indefinitely.
+#
+# That is not hypothetical. It happened once in licorsy/git-governance: seven
+# commits past v1.1.0 with no bump, and two repositories were scaffolded with a
+# CLAUDE.md asserting `develop` was not protected server-side. It is recorded as
+# known gap 8 in licorsy/.github, which asks for exactly this: "a check that the
+# tag matches main".
+#
+# Three failure modes, all of which have occurred or nearly occurred:
+#
+#   1. main moved, nobody tagged        -> floating tag behind main
+#   2. tagged, floating tag not moved   -> semver tag right, consumers stale
+#   3. floating tag points at a TAG     -> `git tag -f v1 v1.4.0` nests a tag
+#      object rather than a commit         inside a tag. `git rev-list -n1 v1`
+#                                          still resolves correctly, so it looks
+#                                          fine; `ls-remote refs/tags/v1` does
+#                                          not. Caught by git's own hint once,
+#                                          which is not a mechanism.
+#
+# Deliberately scheduled rather than triggered on push to `main`: tagging
+# happens *after* the merge, so a push-triggered run would fail every release by
+# construction and train everyone to ignore it.
+
+on:
+  workflow_call:
+    inputs:
+      major-tag:
+        description: 'The floating major tag consumers pin, e.g. "v1".'
+        required: false
+        type: string
+        default: 'v1'
+      version-file:
+        description: 'JSON file whose `.version` is the released version. Empty to skip the version-tag check and only compare the floating tag to main.'
+        required: false
+        type: string
+        default: '.claude-plugin/plugin.json'
+
+jobs:
+  release-integrity:
+    name: release-integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          # Tags are not fetched by default at depth 0 in every runner image;
+          # asking explicitly is cheaper than debugging an empty tag list.
+          fetch-tags: true
+
+      - name: Compare the floating tag and the version tag against main
+        env:
+          MAJOR_TAG: ${{ inputs.major-tag }}
+          VERSION_FILE: ${{ inputs.version-file }}
+        run: |
+          set -euo pipefail
+
+          main_sha="$(git rev-parse main)"
+          problems=()
+
+          # `^{}` peels an annotated tag to the commit it points at. Comparing
+          # the raw ref instead would mask failure mode 3 above: a tag pointing
+          # at a tag has a different sha from the commit, and `rev-list -n1`
+          # would hide that by resolving through it.
+          if ! git rev-parse -q --verify "refs/tags/${MAJOR_TAG}" >/dev/null; then
+            problems+=("floating tag '${MAJOR_TAG}' does not exist")
+          else
+            major_sha="$(git rev-parse "refs/tags/${MAJOR_TAG}^{}")"
+            if [ "$major_sha" != "$main_sha" ]; then
+              problems+=("floating tag '${MAJOR_TAG}' points at ${major_sha:0:7}, main is at ${main_sha:0:7} — consumers are receiving something other than main")
+            fi
+            # Nesting has to be read off the tag's IMMEDIATE target, which
+            # `git cat-file tag` exposes as its `object` header. `^{}` peels
+            # recursively and therefore always lands on a commit — a check
+            # written against it can never fire, which is how the first version
+            # of this check passed a deliberately nested tag in testing.
+            if [ "$(git cat-file -t "refs/tags/${MAJOR_TAG}")" = "tag" ]; then
+              immediate="$(git cat-file tag "refs/tags/${MAJOR_TAG}" | awk '/^object /{print $2; exit}')"
+              if [ "$(git cat-file -t "$immediate")" = "tag" ]; then
+                problems+=("floating tag '${MAJOR_TAG}' points at another tag, not a commit — 'git tag -f ${MAJOR_TAG} <tag>' instead of '<tag>^{}'. It still resolves, so it looks correct")
+              fi
+            fi
+          fi
+
+          if [ -n "$VERSION_FILE" ]; then
+            if [ ! -f "$VERSION_FILE" ]; then
+              problems+=("version file '${VERSION_FILE}' not found")
+            else
+              version="$(node -e "process.stdout.write(String(require('./${VERSION_FILE}').version||''))")"
+              if [ -z "$version" ]; then
+                problems+=("no .version in '${VERSION_FILE}'")
+              elif ! git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+                problems+=("'${VERSION_FILE}' says ${version} but tag 'v${version}' does not exist — main was merged without cutting the release")
+              else
+                vsha="$(git rev-parse "refs/tags/v${version}^{}")"
+                if [ "$vsha" != "$main_sha" ]; then
+                  problems+=("tag 'v${version}' points at ${vsha:0:7}, main is at ${main_sha:0:7}")
+                fi
+              fi
+            fi
+          fi
+
+          if [ "${#problems[@]}" -eq 0 ]; then
+            echo "Release integrity OK: main ${main_sha:0:7}, ${MAJOR_TAG} and the version tag both point at it."
+            echo "Release integrity OK — \`${MAJOR_TAG}\` and the version tag both point at main (\`${main_sha:0:7}\`)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "### Release integrity failed"
+            echo ""
+            for p in "${problems[@]}"; do echo "- $p"; done
+            echo ""
+            echo "Consumers resolve the floating tag, so this drift is invisible to them until something breaks."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Release integrity failed:" >&2
+          for p in "${problems[@]}"; do echo "  - $p" >&2; done
+          exit 1

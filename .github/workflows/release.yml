@@ -1,10 +1,14 @@
 name: Release
 
+# GITHUB_TOKEN is deliberately NOT declared under `workflow_call.secrets`. It is
+# a reserved name: declaring it makes the file invalid, and an invalid workflow
+# file does not fail quietly — GitHub emits a red startup-failure run on every
+# push to every branch, with zero jobs and zero billable time. That is what this
+# file did for 46 runs, 13% of the organization's total, until 2026-08-03. The
+# token is provided to a called workflow automatically; nothing needs to pass it.
+
 on:
   workflow_call:
-    secrets:
-      GITHUB_TOKEN:
-        required: true
 
 jobs:
   release:

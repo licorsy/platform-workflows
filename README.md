@@ -137,9 +137,13 @@ Reusable semantic-release workflow (Node 20 + `semantic-release-action@v4`) for 
 jobs:
   release:
     uses: licorsy/platform-workflows/.github/workflows/release.yml@v1
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+Do not pass `GITHUB_TOKEN` through `secrets:` here. It is a reserved name that a
+called workflow receives automatically, and naming it explicitly — on either side
+of the call — makes the workflow file invalid. An invalid workflow file is not a
+quiet failure: GitHub emits a red startup-failure run on every push to every
+branch until it is corrected.
 
 ## Versioning
 

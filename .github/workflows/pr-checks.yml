@@ -110,7 +110,7 @@ jobs:
   # repository publishes governance-compliance.yml, so it runs it against
   # itself. A compliance check whose own home repository does not pass it is
   # the same decoration SECURITY-BASELINE.md warns about, and this repository
-  # was 1/5 until the commit that added this job.
+  # was 1/6 until the commit that added this job.
   #
   # `./` rather than `@v1` on purpose: a caller pins the released tag, but the
   # host has to test the revision in the pull request, or a change to the

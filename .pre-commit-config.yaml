@@ -1,5 +1,6 @@
-# Local validation — the primary governance gate for this repo and for any
-# repo this plugin is scaffolded into. See AGENTS.md for the full policy.
+# Local validation — the primary governance gate for this repo. Scaffolded
+# from the git-governance plugin (this repository is not itself a plugin).
+# See AGENTS.md for the full policy.
 #
 # Install once per clone:
 #   pre-commit install

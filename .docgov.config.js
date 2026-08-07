@@ -17,14 +17,13 @@ module.exports = {
 
   rules: {
     frontmatter: {
-      // This repository's governed corpus is exactly one file. It holds two
-      // Markdown files: README.md and CLAUDE.md.
-      //
-      //   README.md   is the rendered repository landing page, and GitHub
-      //               renders frontmatter there as a visible table. It is an
-      //               org-wide exception (see the exceptions register in
-      //               licorsy/.github's docs/org-governance-adoption.md) and
-      //               carries no frontmatter, so it declares no id either.
+      // This repository's governed corpus is exactly two files: AGENTS.md and
+      // CLAUDE.md, both listed in root_files below. README.md is deliberately
+      // NOT part of this corpus: it is the rendered repository landing page,
+      // and GitHub renders frontmatter there as a visible table. It is an
+      // org-wide exception (see the exceptions register in licorsy/.github's
+      // docs/org-governance-adoption.md) and carries no frontmatter, so it
+      // declares no id either.
       //
       // No scope_dirs: there is no docs/, agents/, or commands/ here. This
       // repository publishes reusable workflows, not prose. A scope pointing
@@ -34,9 +33,10 @@ module.exports = {
       root_files: ['AGENTS.md', 'CLAUDE.md'],
       exclude_prefixes: [],
       id_only_sources: [],
-      // The full org schema, matching the corpus this file governs. CLAUDE.md
-      // is scaffolded carrying all eight fields, so requiring them costs
-      // nothing and catches a scaffold that arrives stripped.
+      // The full org schema, matching the corpus this file governs. AGENTS.md
+      // and CLAUDE.md are both scaffolded carrying all eight fields, so
+      // requiring them costs nothing and catches a scaffold that arrives
+      // stripped.
       required: ['title', 'doc_type', 'description', 'status', 'version', 'created', 'updated', 'language'],
       status_enum: ['draft', 'active', 'deprecated', 'archived'],
       doc_type_enum: [
@@ -74,15 +74,16 @@ module.exports = {
     },
 
     'version-bump': {
-      // CLAUDE.md carries `version:`, so editing it without bumping is a
-      // detectable defect rather than a matter of memory.
+      // AGENTS.md and CLAUDE.md both carry `version:`, so editing either
+      // without bumping is a detectable defect rather than a matter of
+      // memory.
       enabled: true,
     },
 
     // ---- Phase 2+ content rules ----
     // Deliberately inert. Each exists to pin a fact that has ALREADY drifted
     // here; adding entries speculatively is how a config turns into logic.
-    // Nothing has drifted in this repository yet — it has one governed
-    // document and no restated facts to keep in sync.
+    // Nothing has drifted between this repository's two governed documents
+    // yet — no restated facts to keep in sync.
   },
 };

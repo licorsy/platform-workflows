@@ -3,9 +3,9 @@ title: "AGENTS.md"
 doc_type: instruction
 description: "Git branch, commit, and merge policy in force for this repository, scaffolded from the git-governance plugin: the branch flow and prefix taxonomy, Conventional Commits, the autonomous-to-develop and human-gated-to-staging/main permission model, per-branch merge methods and branch lifecycle, the local and remote validation layers, and how companion plugins compose with it."
 status: active
-version: "2.1.0"
+version: "2.3.0"
 created: 2026-08-01
-updated: 2026-08-02
+updated: 2026-08-07
 language: en
 id: agents-instructions
 owner: Alexandre Clemente
@@ -22,15 +22,16 @@ Portable Git branch/merge/commit governance for a solo maintainer working with
 Claude Code, scaffolded here from the `git-governance` plugin. Do not add
 project-specific detail that wouldn't make sense verbatim in another repo — the
 plugin's copy is the source, and this one is expected to stay a faithful
-scaffold of it.
+scaffold of it. Every unqualified "this plugin" and every bare `agents/`- or
+`scripts/`-prefixed path below refers to `git-governance` and lives in *that*
+repository, not this one — this repository is not itself a Claude Code plugin
+(no `.claude-plugin/plugin.json` here; see `release-integrity-self.yml`).
 
 ## Branch flow
 
-<!-- fragment:branch-flow:start -->
 ```text
 feat/* (also fix/, refactor/, docs/, chore/, hotfix/)  ->  develop  ->  staging  ->  main
 ```
-<!-- fragment:branch-flow:end -->
 
 - Work branches are created from an up-to-date `develop`.
 - `develop -> staging` and `staging -> main` are promotions, never a starting point
@@ -67,8 +68,13 @@ feat/* (also fix/, refactor/, docs/, chore/, hotfix/)  ->  develop  ->  staging 
   Merging one **always requires explicit human confirmation**, given after
   the PR exists — the merge itself is a human action, not an automated one,
   even when the request comes from the repo owner using their own
-  credentials, and even in the same breath as the request to open it. See the
-  permission model in `agents/git-governance-advisor.md`.
+  credentials, and even in the same breath as the request to open it.
+  `/prepare-merge-staging` and `/prepare-release-main` open a PR per hop and
+  never merge either one, confirmation or not. `/promote-window` is the one
+  exception, asked for **by name**: it covers a whole
+  `develop -> staging -> main` window and merges within that authorization,
+  each hop only on green required checks. See the permission model in
+  `agents/git-governance-advisor.md`.
 
 ### Merge methods
 
@@ -122,8 +128,12 @@ too would burn quota on checks that already passed locally. `staging` and `main`
 are the deliberate, infrequent promotion points, so that's where spending
 Actions minutes on one more remote confirmation is worth it.
 
-Four independent jobs run there: file-content hooks, documentation consistency,
-the promotion-source guard, and security. They are **separate jobs on purpose**
+Five independent jobs run there: file-content hooks, documentation consistency,
+the promotion-source guard, security, and — the one deliberate divergence from
+the scaffolded `pr-checks.yml` — this repository's own `governance-compliance.yml`
+run against itself, since a compliance check whose own home repository doesn't
+pass it would be exactly the decoration `licorsy/.github`'s `SECURITY-BASELINE.md`
+warns about. They are **separate jobs on purpose**
 — steps stop at the first failure, so a check bundled as a trailing step can be
 silently skipped by an unrelated failure ahead of it. That happened: a
 commit-message failure suppressed the documentation check entirely on a real
@@ -146,19 +156,19 @@ which is earlier, cheaper, and actually preventive.
 
 `git-governance` owns branch taxonomy, commit format, and merge permissions
 for a repo. It does **not** need to own every workflow trigger — a companion
-plugin may bring its own workflow instead of using a shared step in
+plugin may bring its own workflow instead of using the shared job in
 `pr-checks.yml`, as long as it's narrowly scoped to what it actually checks
 (for example, path-filtered to `**/*.md` and its own config file). For
 [docs-governance](https://github.com/licorsy/docs-governance) specifically,
 that file must be named exactly `.github/workflows/docs-governance.yml` — not
 just any narrowly-scoped filename — because that literal string is what
 `pr-checks.yml`'s guard checks for below; a differently-named docs-governance
-workflow would go unrecognized and the shared step would keep running
+workflow would go unrecognized and the shared job would keep running
 alongside it. A different companion plugin would need its own guard, since
 this specific filename check only knows about docs-governance. What to avoid
 is a companion plugin
 duplicating a check `pr-checks.yml` already runs broadly: the shared
-`docs-governance` step in `pr-checks.yml` is guarded by all three of
+`docs-governance` job in `pr-checks.yml` is guarded by all three of
 `github.event_name == 'pull_request'`, `hashFiles('.docgov.config.js') != ''`,
 and `hashFiles('.github/workflows/docs-governance.yml') == ''`, so it
 self-disables the moment a repo adds that file — no manual toggling needed.
@@ -168,7 +178,7 @@ manual `workflow_dispatch` run passes an empty `base-sha` — only the
 without one, so the other rules (frontmatter, internal-links,
 changelog-retention) still run and can still fail; a dispatch run is a
 *partial* check missing version-bump coverage, not a run doing nothing;
-dropping the second runs the step in repos with no docs-governance config at
+dropping the second runs the job in repos with no docs-governance config at
 all; dropping the third is what would let the same check run twice on any PR
 into `staging`/`main` that touches docs.
 
@@ -188,7 +198,7 @@ companion plugin's own local hook (e.g. `docgov init --hook` installs
 `.git/hooks/pre-commit` directly, calling `docgov` via a fixed path — a
 vendored copy under `.github/`, or an absolute path to a sibling checkout)
 cannot reference it. Running `pre-commit install` overwrites that hook file
-wholesale. Before installing this plugin's `.pre-commit-config.yaml` hooks
+wholesale. Before installing `git-governance`'s `.pre-commit-config.yaml` hooks
 into a repo that already has such a hook, add the companion's check as a
 `repo: local` entry first (see the commented example already checked into a
 target repo's `.pre-commit-config.yaml` if one exists), so the framework
@@ -203,7 +213,7 @@ the first.
 
 ## Documentation ownership
 
-Each fact this plugin governs — the branch-prefix taxonomy, the permission
+Each fact `git-governance` governs — the branch-prefix taxonomy, the permission
 matrix, a command's step-by-step behavior, a script's contract, an
 enforcement claim like the CI guard's clause count — has exactly **one**
 authoritative file. Every other file links to it (`"see X"`) instead of
@@ -215,12 +225,13 @@ restating it in its own prose:
 - A script's contract → owned by that script's header comment only.
 
 This repo uses `docs-governance` (see "Companion plugins" above) to catch
-restatement drift mechanically where it can: `.docgov.config.js` declares
-`facts` entries for the taxonomy list and the CI guard's clause count, and a
-`fragment_sync` entry for the branch-flow diagram duplicated verbatim across
-`CLAUDE.md` and `README.md`. If an audit — human, `docgov`, or an LLM
-auditor — finds the same fact stated in 2+ files, the fix is to add or
-extend one of those config entries, not just correct the wording in place:
+restatement drift mechanically where it can — but **this repository's own
+`.docgov.config.js` declares no `facts` or `fragment_sync` entries at all**:
+its governed corpus is just `AGENTS.md` and `CLAUDE.md`, and nothing has
+drifted between them yet (`CLAUDE.md` is a thin `@AGENTS.md` import with no
+prose of its own to drift). If an audit — human, `docgov`, or an LLM
+auditor — finds the same fact stated in 2+ files here, the fix is to add a
+`facts` or `fragment_sync` entry, not just correct the wording in place:
 correcting the wording alone leaves nothing keeping the next edit from
 re-breaking it.
 
@@ -250,7 +261,7 @@ re-breaking it.
 
 See <https://github.com/licorsy/git-governance#readme> for the full walkthrough
 (this file's own `README.md` reference won't resolve once this file is
-scaffolded into a repo that doesn't have this plugin's README) and
+scaffolded into a repo that doesn't have `git-governance`'s own README) and
 `agents/git-governance-advisor.md` for the branch taxonomy, permission
 matrix, and validation vocabulary — that one resolves anywhere the plugin is
 installed, since agents are registered by Claude Code, not read off disk.

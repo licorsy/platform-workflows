@@ -23,6 +23,24 @@ name: Release Integrity
 #                                          not. Caught by git's own hint once,
 #                                          which is not a mechanism.
 #
+# A fourth mode is sha-only and therefore invisible to the three above: cutting
+# a tag on a commit whose CHANGELOG.md `[Unreleased]` section is not empty. The
+# tag is then correct about *where* it points and wrong about *what* it claims
+# to contain. `licorsy/ai-assisted-sdd-template` hit the near-miss shape this
+# guards against (docs/prompts/013 and 018 there) and could not adopt this
+# reusable workflow at all, so it built the same assertion locally in
+# `check-release-integrity.js` — this mirrors that script's
+# `extractUnreleasedSection` convention: "nothing pending" is the `##
+# [Unreleased]` heading with literally nothing below it, not even an empty
+# `### Added` subheading. It fires only once the checks above already found
+# nothing wrong — the state where a tag genuinely matches `main`'s tip — because
+# mid-cycle on a branch that has not been tagged yet, `[Unreleased]`
+# legitimately holds real content and flagging it there would be noise, not
+# signal. `changelog-file` defaults to `CHANGELOG.md` and the check is a no-op,
+# not a failure, when that file does not exist — true of every repository that
+# calls this workflow today, wired ahead of need the same way dependency-review
+# was in known gap 9.
+#
 # Deliberately scheduled rather than triggered on push to `main`: tagging
 # happens *after* the merge, so a push-triggered run would fail every release by
 # construction and train everyone to ignore it.
@@ -40,6 +58,11 @@ on:
         required: false
         type: string
         default: '.claude-plugin/plugin.json'
+      changelog-file:
+        description: 'Keep a Changelog file to check for a non-empty [Unreleased] section once a tag matches main. Empty to skip. Missing file is a no-op, not a failure.'
+        required: false
+        type: string
+        default: 'CHANGELOG.md'
 
 jobs:
   release-integrity:
@@ -58,6 +81,7 @@ jobs:
         env:
           MAJOR_TAG: ${{ inputs.major-tag }}
           VERSION_FILE: ${{ inputs.version-file }}
+          CHANGELOG_FILE: ${{ inputs.changelog-file }}
         run: |
           set -euo pipefail
 
@@ -103,6 +127,30 @@ jobs:
                   problems+=("tag 'v${version}' points at ${vsha:0:7}, main is at ${main_sha:0:7}")
                 fi
               fi
+            fi
+          fi
+
+          # Only meaningful once the checks above found nothing wrong — the
+          # state where a tag genuinely matches main's tip. Mid-cycle,
+          # [Unreleased] legitimately holds real content; flagging it there
+          # would be noise, not signal. A missing changelog is a no-op, not a
+          # failure: no repository calling this workflow carries one yet.
+          if [ -n "$CHANGELOG_FILE" ] && [ -f "$CHANGELOG_FILE" ] && [ "${#problems[@]}" -eq 0 ]; then
+            # Raw text between the "## [Unreleased]" heading and the next
+            # "## [...]" heading, mirroring extractUnreleasedSection() in
+            # ai-assisted-sdd-template's check-release-integrity.js: "nothing
+            # pending" is the heading with literally nothing below it, not
+            # even an empty "### Added" subheading.
+            unreleased="$(awk '
+              BEGIN{f=0}
+              /^##[ \t]+\[/ {
+                if (f) exit
+                if (tolower($0) ~ /\[unreleased\]/) { f=1; next }
+              }
+              f { print }
+            ' "$CHANGELOG_FILE")"
+            if [ -n "$(printf '%s' "$unreleased" | tr -d '[:space:]')" ]; then
+              problems+=("main is tagged '${MAJOR_TAG}', but '${CHANGELOG_FILE}'s [Unreleased] section is not empty — the tagged release's own notes may not describe everything the tagged commit contains")
             fi
           fi
 

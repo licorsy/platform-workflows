@@ -11,15 +11,11 @@ License: MIT.
 ## Reusable workflows
 
 **Availability.** `uses: ...@v1` resolves to whatever the floating `v1` tag points at, which
-is **not** automatically the tip of `main`. As of 2026-08-01 `v1` is at `v1.0.1` and carries
-only `ci-docs.yml`, `ci-security.yml`, and `release.yml`. `governance-compliance.yml` and
-`release-integrity.yml` are on `develop` and become reachable at `@v1` only once this
-repository is promoted and the floating tag moved — the `@v1` snippets below are how to call
-them, not proof that they resolve today.
-
-That gap is the exact failure mode `release-integrity.yml` exists to catch, and it caught it
-here on its first real run against this repository.
-
+is **not** automatically the tip of `main` — it moves only when a promotion explicitly cuts a
+release and re-points it. As of 2026-08-07 `v1` is at `v1.3.0` and carries all five reusable
+workflows documented below, including `governance-compliance.yml` and `release-integrity.yml`;
+`release-integrity.yml` itself now checks this on a schedule and would report if `v1` ever fell
+behind `main` again.
 
 Call these at **job level** (`jobs.<id>.uses: ...`) — they are `workflow_call` reusable
 workflows, not composite actions, so they cannot be invoked as a step inside another job.
@@ -47,10 +43,12 @@ at job level instead (e.g. a repo variable or `github.event` field).
 Two jobs: `dependency-review` (gated to PRs targeting `staging`/`main`) and `secret-scanning`
 via [gitleaks](https://github.com/gitleaks/gitleaks-action).
 
-**Organization-owned repos need a free `GITLEAKS_LICENSE` key** (get one at
-[gitleaks.io](https://gitleaks.io) — personal-account repos don't need one). Pass it through
-with `secrets: inherit` and an org-level `GITLEAKS_LICENSE` secret so every caller picks it up
-without repeating the key per repo.
+`GITLEAKS_LICENSE` is **optional and organization-level**: `gitleaks-action` runs without it,
+with reduced functionality, so no caller is blocked by its absence. For an organization-owned
+repo it's worth getting a free key at [gitleaks.io](https://gitleaks.io) and setting it once as
+an org-level `GITLEAKS_LICENSE` secret — personal-account repos don't need one at all. Pass it
+through with `secrets: inherit` so every caller picks it up without repeating the key per repo.
+This is the description other repos' `pr-checks.yml`/`ci-security.yml` comments point back to.
 
 ```yaml
 jobs:
@@ -101,7 +99,7 @@ keeps serving the previous version silently and indefinitely.
 
 ```yaml
 on:
-  schedule: [{ cron: '17 6 * * *' }]
+  schedule: [{ cron: '<minute> <hour> * * *' }]  # pick your own offset — see below
   workflow_dispatch: {}
 
 jobs:
@@ -109,15 +107,27 @@ jobs:
     uses: licorsy/platform-workflows/.github/workflows/release-integrity.yml@v1
 ```
 
-Inputs: `major-tag` (default `v1`) and `version-file` (default `.claude-plugin/plugin.json`;
-set empty to compare only the floating tag against `main`).
+Each caller should use its own cron offset rather than copying this repo's own
+(`17 6 * * *`, used by `release-integrity-self.yml`) — every repo running the same slot means
+they'd all compete for runner capacity and land in the same drift-detection window instead of
+spreading it across the day.
 
-It catches three failure modes, each of which has happened or nearly happened here:
+Inputs: `major-tag` (default `v1`), `version-file` (default `.claude-plugin/plugin.json`; set
+empty to compare only the floating tag against `main`), and `changelog-file` (default
+`CHANGELOG.md`; set empty to skip the fourth check below — a missing file is already a no-op,
+not a failure, since no repository calling this workflow carries one yet).
 
-1. `main` moved and nobody tagged — the original incident, seven commits past `v1.1.0`.
+It catches four failure modes, each of which has happened or nearly happened somewhere in
+this organization:
+
+1. `main` moved and nobody tagged — the original incident, in this repository, seven commits
+   past `v1.1.0`.
 2. Tagged, but the floating tag wasn't moved — semver tag right, consumers stale.
 3. `git tag -f v1 v1.4.0` points the floating tag at the **tag object** rather than the
    commit. `git rev-list -n1 v1` still resolves correctly, so it looks fine.
+4. Sha-only, and therefore invisible to the three above: a tag lands on a commit whose
+   `CHANGELOG.md` `[Unreleased]` section is not empty — correct about *where* it points, wrong
+   about *what* it claims to contain. Only checked once modes 1–3 already found nothing wrong.
 
 **Scheduled, not on push to `main`** — tagging happens *after* the merge, so a
 push-triggered run would fail every release by construction and train everyone to

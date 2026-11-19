@@ -18,6 +18,13 @@ jobs:
   secret-scanning:
     name: secret-scanning
     runs-on: ubuntu-latest
+    # gitleaks-action lists the PR's commits via GET /pulls/{n}/commits. Public repos answer
+    # that unauthenticated; private repos need pull-requests: read (issue #35). A called
+    # workflow cannot raise the caller's token, so private callers with the restricted default
+    # token must also grant it on the calling job (see README).
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:

@@ -66,7 +66,7 @@ feat/* (also fix/, refactor/, docs/, chore/, hotfix/)  ->  develop  ->  staging 
   revert, not a lighter review requirement.
 - Opening a promotion PR into `staging` or `main` needs no confirmation.
   Merging one **always requires explicit human confirmation**, given after
-  the PR exists — the merge itself is a human action, not an automated one,
+  the PR exists — the merge is never automated or bundled with opening it,
   even when the request comes from the repo owner using their own
   credentials, and even in the same breath as the request to open it.
   `/prepare-merge-staging` and `/prepare-release-main` open a PR per hop and

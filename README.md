@@ -12,10 +12,10 @@ License: MIT.
 
 **Availability.** `uses: ...@v1` resolves to whatever the floating `v1` tag points at, which
 is **not** automatically the tip of `main` — it moves only when a promotion explicitly cuts a
-release and re-points it. As of 2026-08-07 `v1` is at `v1.3.0` and carries all five reusable
-workflows documented below, including `governance-compliance.yml` and `release-integrity.yml`;
-`release-integrity.yml` itself now checks this on a schedule and would report if `v1` ever fell
-behind `main` again.
+release and re-points it, so a change merged to `develop` (for example the `secret-scanning`
+permissions from #35) reaches callers only after that promotion. This README does not pin which
+release `v1` is at; `git ls-remote --tags https://github.com/licorsy/platform-workflows` shows it,
+and `release-integrity.yml` checks on a schedule that `v1` has not fallen behind `main`.
 
 Call these at **job level** (`jobs.<id>.uses: ...`) — they are `workflow_call` reusable
 workflows, not composite actions, so they cannot be invoked as a step inside another job.

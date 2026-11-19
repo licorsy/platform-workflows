@@ -3,9 +3,9 @@ title: "AGENTS.md"
 doc_type: instruction
 description: "Git branch, commit, and merge policy in force for this repository, scaffolded from the git-governance plugin: the branch flow and prefix taxonomy, Conventional Commits, the autonomous-to-develop and human-gated-to-staging/main permission model, per-branch merge methods and branch lifecycle, the local and remote validation layers, and how companion plugins compose with it."
 status: active
-version: "2.3.0"
+version: "2.5.0"
 created: 2026-08-01
-updated: 2026-08-07
+updated: 2026-11-19
 language: en
 id: agents-instructions
 owner: Alexandre Clemente
@@ -22,10 +22,17 @@ Portable Git branch/merge/commit governance for a solo maintainer working with
 Claude Code, scaffolded here from the `git-governance` plugin. Do not add
 project-specific detail that wouldn't make sense verbatim in another repo — the
 plugin's copy is the source, and this one is expected to stay a faithful
-scaffold of it. Every unqualified "this plugin" and every bare `agents/`- or
-`scripts/`-prefixed path below refers to `git-governance` and lives in *that*
-repository, not this one — this repository is not itself a Claude Code plugin
-(no `.claude-plugin/plugin.json` here; see `release-integrity-self.yml`).
+scaffold of it.
+In a scaffolded copy, every unqualified "this plugin" and every bare
+`agents/`- or `scripts/`-prefixed path refers to `git-governance` and lives in
+that plugin's repository, not in the host repository.
+
+The frontmatter block above is the one exception, because it describes *this*
+repository. A scaffolded copy resets `created`, `updated`, and `owner` to the
+target's own values, and changes `title`/`description` to say the policy was
+scaffolded from this plugin rather than naming the plugin as the subject.
+`doc_type`, `status`, `version`, `language`, `id`, and `tags` carry over
+unchanged.
 
 ## Branch flow
 
@@ -65,9 +72,8 @@ feat/* (also fix/, refactor/, docs/, chore/, hotfix/)  ->  develop  ->  staging 
   what makes `develop` safe to automate is that errors there are cheap to
   revert, not a lighter review requirement.
 - Opening a promotion PR into `staging` or `main` needs no confirmation.
-  Merging one **always requires explicit human confirmation**, given after
-  the PR exists — the merge is never automated or bundled with opening it,
-  even when the request comes from the repo owner using their own
+  **Merging one always requires explicit human confirmation**, given after the
+  PR exists — even when the request comes from the repo owner using their own
   credentials, and even in the same breath as the request to open it.
   `/prepare-merge-staging` and `/prepare-release-main` open a PR per hop and
   never merge either one, confirmation or not. `/promote-window` is the one
@@ -172,13 +178,19 @@ duplicating a check `pr-checks.yml` already runs broadly: the shared
 `github.event_name == 'pull_request'`, `hashFiles('.docgov.config.js') != ''`,
 and `hashFiles('.github/workflows/docs-governance.yml') == ''`, so it
 self-disables the moment a repo adds that file — no manual toggling needed.
+It runs as its own **job**, not a step inside `pre-commit`: steps stop at the
+first failure, so as a trailing step this check was hostage to the
+commit-message lint, and one non-conforming subject made the documentation check
+silently not run at all. Reordering only reverses which check is hostage;
+separate jobs make them independent both ways. The guard itself stays at step
+level, because `hashFiles()` is not recognized in a job-level `if:`.
 Keep all three clauses when copying this workflow: dropping the first means a
 manual `workflow_dispatch` run passes an empty `base-sha` — only the
 `version-bump` rule reads that value, and it abstains rather than fails
 without one, so the other rules (frontmatter, internal-links,
 changelog-retention) still run and can still fail; a dispatch run is a
 *partial* check missing version-bump coverage, not a run doing nothing;
-dropping the second runs the job in repos with no docs-governance config at
+dropping the second runs the check in repos with no docs-governance config at
 all; dropping the third is what would let the same check run twice on any PR
 into `staging`/`main` that touches docs.
 
@@ -216,8 +228,9 @@ the first.
 Each fact `git-governance` governs — the branch-prefix taxonomy, the permission
 matrix, a command's step-by-step behavior, a script's contract, an
 enforcement claim like the CI guard's clause count — has exactly **one**
-authoritative file. Every other file links to it (`"see X"`) instead of
-restating it in its own prose:
+authoritative file. Every other file either links to it (`"see X"`) or
+restates it only where a pinned `facts` or `fragment_sync` entry keeps the
+copies identical:
 
 - Taxonomy and the permission matrix → owned by
   `agents/git-governance-advisor.md` only.
@@ -240,7 +253,7 @@ re-breaking it.
 1. `claude plugin marketplace add licorsy/git-governance` then
    `claude plugin install git-governance@git-governance` in the target repo.
 2. Run `/git-check` — it reports what's missing and, with confirmation,
-   scaffolds this file plus `.pre-commit-config.yaml`,
+   scaffolds this file plus `CLAUDE.md`, `.pre-commit-config.yaml`,
    `.github/workflows/pr-checks.yml`, and `.claude/settings.json` via
    `scripts/init-governance.sh`. It never overwrites a file that already
    exists in the target repo — which matters most for `.claude/settings.json`,

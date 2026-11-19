@@ -12,10 +12,10 @@ License: MIT.
 
 **Availability.** `uses: ...@v1` resolves to whatever the floating `v1` tag points at, which
 is **not** automatically the tip of `main` — it moves only when a promotion explicitly cuts a
-release and re-points it. As of 2026-08-07 `v1` is at `v1.3.0` and carries all five reusable
-workflows documented below, including `governance-compliance.yml` and `release-integrity.yml`;
-`release-integrity.yml` itself now checks this on a schedule and would report if `v1` ever fell
-behind `main` again.
+release and re-points it, so a change merged to `develop` (for example the `secret-scanning`
+permissions from #35) reaches callers only after that promotion. This README does not pin which
+release `v1` is at; `git ls-remote --tags https://github.com/licorsy/platform-workflows` shows it,
+and `release-integrity.yml` checks on a schedule that `v1` has not fallen behind `main`.
 
 Call these at **job level** (`jobs.<id>.uses: ...`) — they are `workflow_call` reusable
 workflows, not composite actions, so they cannot be invoked as a step inside another job.
@@ -43,17 +43,33 @@ at job level instead (e.g. a repo variable or `github.event` field).
 Two jobs: `dependency-review` (gated to PRs targeting `staging`/`main`) and `secret-scanning`
 via [gitleaks](https://github.com/gitleaks/gitleaks-action).
 
-`GITLEAKS_LICENSE` is **optional and organization-level**: `gitleaks-action` runs without it,
-with reduced functionality, so no caller is blocked by its absence. For an organization-owned
-repo it's worth getting a free key at [gitleaks.io](https://gitleaks.io) and setting it once as
-an org-level `GITLEAKS_LICENSE` secret — personal-account repos don't need one at all. Pass it
-through with `secrets: inherit` so every caller picks it up without repeating the key per repo.
+`GITLEAKS_LICENSE` is **required for organization-owned repos**: without it `gitleaks-action`
+stops with `[<org>] is an organization. License key is required.` Personal-account repos don't
+need one. Get a free key at [gitleaks.io](https://gitleaks.io), set it once as an org-level
+`GITLEAKS_LICENSE` secret, and pass it through with `secrets: inherit` so every caller picks it
+up without repeating the key per repo.
+
+**Private callers on GitHub Free** need two more things (issue #35):
+
+- **The secret at repository level.** On GitHub Free, org secrets do not reach private repos,
+  so the org-level key arrives empty there. Set the same `GITLEAKS_LICENSE` on the private repo.
+- **`pull-requests: read` on the calling job.** `gitleaks-action` lists the PR's commits, and a
+  private repo refuses that call without this permission (public repos answer it
+  unauthenticated, which is why public callers never see the failure). The `secret-scanning`
+  job declares it, but a called workflow can only keep or reduce what the caller's token
+  carries, never raise it. With the restricted default token (`contents`/`metadata`/`packages`
+  read), the caller must grant it on the calling job, as in the example below. Granting it there
+  is harmless for public callers.
+
 This is the description other repos' `pr-checks.yml`/`ci-security.yml` comments point back to.
 
 ```yaml
 jobs:
   ci-security:
     uses: licorsy/platform-workflows/.github/workflows/ci-security.yml@v1
+    permissions:          # required on private repos with the restricted default token
+      contents: read
+      pull-requests: read
     secrets: inherit
 ```
 
